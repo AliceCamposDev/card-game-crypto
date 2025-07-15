@@ -1,43 +1,69 @@
+import crypto from "crypto";
+import elliptic from "elliptic";
+const EC = new elliptic.ec("secp256k1");
+import { ITransaction } from "../interfaces/transaction.interface";
 
-import crypto from 'crypto';
-import elliptic from 'elliptic';
-const EC = new elliptic.ec('secp256k1');
-import { ITransaction } from '../interfaces/transaction.interface';
+export class Transaction implements ITransaction {
+  public sender: string;
+  public recipient: string;
+  public amount: bigint;
+  public timestamp: number = Date.now();
+  public signature: string = "";
+  public publicKey: string;
 
-class Transaction implements ITransaction {
   constructor(
-    public sender: string,
-    public recipient: string,
-    public amount: bigint,
-    public timestamp: number = Date.now(),
-    public signature: string = ''
-  ) {}
+    sender: string,
+    recipient: string,
+    amount: bigint,
+    timestamp: number,
+    signature: string,
+    publicKey: string,
+  ) {
+    this.sender = sender;
+    this.recipient = recipient;
+    this.amount = amount;
+    this.timestamp = timestamp;
+    this.signature = signature;
+    this.publicKey = publicKey;
+  }
+
+  createTransaction(
+    sender: string,
+    recipient: string,
+    amount: bigint,
+    publicKey: string
+  ): ITransaction {
+    return new Transaction(sender, recipient, amount, Date.now(), "", publicKey);
+  }
 
   calculateHash(): string {
     return crypto
-      .createHash('sha256')
-      .update(this.sender + this.recipient + this.amount + this.timestamp)
-      .digest('hex');
+      .createHash("sha256")
+      .update(this.sender + this.publicKey + this.recipient + this.amount + this.timestamp)
+      .digest("hex");
   }
 
-  signTransaction(signingKey: elliptic.ec.KeyPair): void {
-    if (signingKey.getPublic('hex') !== this.sender) {
-      throw new Error('You cannot sign transactions for other wallets!');
+  isValid(getAvailableBalanceFn: (address: string) => bigint): boolean {
+    if (!this.sender || !this.recipient) {
+      console.log("Transaction must include sender and recipient addresses")
+      return false;
     }
 
-    const hashTx = this.calculateHash();
-    const sig = signingKey.sign(hashTx, 'base64');
-    this.signature = sig.toDER('hex');
-  }
-
-  isValid(): boolean {
-    if (this.sender === 'system') return true;
-
-    if (!this.signature || this.signature.length === 0) {
-      throw new Error('No signature in this transaction');
+    if (this.amount <= 0n) {
+      console.log("Transaction amount must be greater than zero");
+      return false;
     }
 
-    const publicKey = EC.keyFromPublic(this.sender, 'hex');
-    return publicKey.verify(this.calculateHash(), this.signature);
+    if (this.sender === "System") {
+      return true;
+    }
+
+    const senderBalance = getAvailableBalanceFn(this.sender);
+    if (senderBalance < this.amount) {
+      console.log("Sender does not have enough balance");
+      return false;
+    }
+
+    return true
   }
 }
