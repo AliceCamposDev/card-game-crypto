@@ -80,6 +80,7 @@ export class Blockchain implements IBlockchain {
       signature: "",
     };
 
+    this.pendingTransactions = [];
     newBlock.hash = hashBlock(newBlock);
     wallet.signBlock(newBlock);
 
@@ -97,7 +98,7 @@ export class Blockchain implements IBlockchain {
     }
 
     if (!transaction.publicKey || !transaction.signature) {
-      console.error("Missing public key or signature");
+      console.log("Missing public key or signature");
       return false;
     }
 
@@ -115,7 +116,7 @@ export class Blockchain implements IBlockchain {
 
       return keyPair.verify(txHash, transaction.signature);
     } catch (error) {
-      console.error("Signature verification failed:", error);
+      console.log("Signature verification failed");
       return false;
     }
   }
@@ -127,19 +128,19 @@ export class Blockchain implements IBlockchain {
   public addTransaction(transaction: ITransaction): boolean {
     try {
       if (!transaction.isValid(this.getAvailableBalance.bind(this))) {
-        console.error("Cannot add invalid transaction to chain");
+        console.log("Cannot add invalid transaction to chain");
         return false;
       }
 
       if (!this.isTransactionSignatureValid(transaction)) {
-        console.error("Cannot add transaction, invalid Transaction signature");
+        console.log("Cannot add transaction, invalid Transaction signature");
         return false;
       }
 
       this.pendingTransactions.push(transaction);
       return true;
     } catch (error) {
-      console.error("Error adding transaction:", error);
+      console.log("Error adding transaction:", error);
       return false;
     }
   }
@@ -159,6 +160,10 @@ export class Blockchain implements IBlockchain {
       }
     }
 
+    const currentStake: bigint = this.stakes.get(address) || 0n;
+
+    balance -= currentStake;
+
     return balance;
   }
 
@@ -172,101 +177,92 @@ export class Blockchain implements IBlockchain {
     return balance;
   }
 
-//   public isChainValid(): boolean {
-//     if (this.chain.length === 0) {
-//       console.error("Blockchain is empty");
-//       return false;
-//     }
+  public isChainValid(): boolean {
+    if (this.chain.length === 0) {
+      console.log("Blockchain is empty");
+      return false;
+    }
 
-//     try {
-//       const genesis = this.chain[0];
-//       if (
-//         genesis.index !== 0 ||
-//         genesis.previousHash !== "0" ||
-//         genesis.transactions.length !== 0
-//       ) {
-//         console.error("Genesis block is invalid");
-//         return false;
-//       }
+    try {
+      const genesis = this.chain[0];
+      if (
+        genesis.index !== 0 ||
+        genesis.previousHash !== "0" ||
+        genesis.transactions.length !== 0
+      ) {
+        console.log("Genesis block is invalid");
+        return false;
+      }
 
-//       for (let i = 1; i < this.chain.length; i++) {
-//         const currentBlock = this.chain[i];
-//         const previousBlock = this.chain[i - 1];
+      for (let i = 1; i < this.chain.length; i++) {
+        const currentBlock = this.chain[i];
+        const previousBlock = this.chain[i - 1];
 
-//         //TODO: better validation of transactions
-//         for (const trans of currentBlock.transactions) {
-//           if (!this.isTransactionSignatureValid(trans)) {
-//             console.error(`Invalid transaction in block ${currentBlock.index}`);
-//             return false;
-//           }
-//         }
+        //TODO: better validation of transactions
+        for (const trans of currentBlock.transactions) {
+          if (!this.isTransactionSignatureValid(trans)) {
+            console.log(`Invalid transaction in block ${currentBlock.index}`);
+            return false;
+          }
+        }
 
-//         const { hash, ...blockWithoutHash } = currentBlock;
+        if (hashBlock(currentBlock) !== currentBlock.hash) {
+          console.log(`Block ${i} hash is invalid`);
+          return false;
+        }
 
-//         if (this.calculateBlockHash(blockWithoutHash) !== currentBlock.hash) {
-//           console.error(`Block ${i} hash is invalid`);
-//           return false;
-//         }
+        if (currentBlock.previousHash !== previousBlock.hash) {
+          console.log(`Block ${i} previous hash is invalid`);
+          return false;
+        }
 
-//         if (currentBlock.previousHash !== previousBlock.hash) {
-//           console.error(`Block ${i} previous hash is invalid`);
-//           return false;
-//         }
+        if (currentBlock.index !== previousBlock.index + 1) {
+          console.log(`Block ${i} index is invalid`);
+          return false;
+        }
 
-//         if (currentBlock.index !== previousBlock.index + 1) {
-//           console.error(`Block ${i} index is invalid`);
-//           return false;
-//         }
+      }
 
-//         if (!currentBlock.hash.startsWith("0".repeat(this.difficulty))) {
-//           console.error(`Block ${i} doesn't meet difficulty requirement`);
-//           return false;
-//         }
-//       }
+      return true;
+    } catch (error) {
+      console.log("Error validating chain:", error);
+      return false;
+    }
+  }
 
-//       return true;
-//     } catch (error) {
-//       console.error("Error validating chain:", error);
-//       return false;
-//     }
-//   }
+  public addBlock(newBlock: IBlock): boolean {
+    try {
+      if (newBlock.previousHash !== this.getLatestBlock().hash) {
+        console.log("Invalid previous hash");
+        return false;
+      }
 
-//   public addBlock(newBlock: IBlock): boolean {
-//     try {
-//       if (newBlock.previousHash !== this.getLatestBlock().hash) {
-//         console.error("Invalid previous hash");
-//         return false;
-//       }
+      if (hashBlock(newBlock) !== newBlock.hash) {
+        console.log("Invalid hash");
+        return false;
+      }
 
-//       const { hash, ...blockWithoutHash } = newBlock;
-//       if (this.calculateBlockHash(blockWithoutHash) !== newBlock.hash) {
-//         console.error("Invalid hash");
-//         return false;
-//       }
-//       if (newBlock.index !== this.getLatestBlock().index + 1) {
-//         console.error("Invalid block index");
-//         return false;
-//       }
-//       if (!newBlock.hash.startsWith("0".repeat(this.difficulty))) {
-//         console.error("Block does not meet difficulty requirement");
-//         return false;
-//       }
-//       for (const trans of newBlock.transactions) {
-//         if (!trans.isValid(this.getAvailableBalance.bind(this))) {
-//           console.error("Invalid transaction in block");
-//           return false;
-//         }
-//         if (!this.isTransactionSignatureValid(trans)) {
-//           console.error("Invalid transaction signature in block");
-//           return false;
-//         }
-//       }
+      if (newBlock.index !== this.getLatestBlock().index + 1) {
+        console.log("Invalid block index");
+        return false;
+      }
+      
+      for (const trans of newBlock.transactions) {
+        if (!trans.isValid(this.getAvailableBalance.bind(this))) {
+          console.log("Invalid transaction in block");
+          return false;
+        }
+        if (!this.isTransactionSignatureValid(trans)) {
+          console.log("Invalid transaction signature in block");
+          return false;
+        }
+      }
 
-//       this.chain.push(newBlock);
-//       return true;
-//     } catch (error) {
-//       console.error("Error adding block:", error);
-//       return false;
-//     }
-//   }
-// }
+      this.chain.push(newBlock);
+      return true;
+    } catch (error) {
+      console.log("Error adding block:", error);
+      return false;
+    }
+  }
+}

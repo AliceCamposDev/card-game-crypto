@@ -2,14 +2,14 @@ import { IBlock } from "../interfaces/block.interface";
 import { ITransaction } from "../interfaces/transaction.interface";
 import crypto from "crypto";
 
-
-
 export const transactionsToString = (transactions: ITransaction[]): string => {
-    const result: string= JSON.stringify(transactions, (key, value) =>
-    key === "amount" && typeof value === "bigint" ? value.toString() : value
-    )
-    return result;
-}
+    return JSON.stringify(transactions, (key, value) => {
+        if (typeof value === 'bigint') {
+            return value.toString();
+        }
+        return value;
+    });
+};
 
 export const hashBlock = (block: IBlock): string => {
     const payload=[
