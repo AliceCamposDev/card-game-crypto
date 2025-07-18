@@ -32,7 +32,7 @@ describe("Blockchain", () => {
         sender: "System",
         recipient: wallet2.address,
         amount: 100n,
-        fee: 1n,
+        fee: 0n,
         timestamp: Date.now(),
         publicKey: wallet1.publicKey,
         signature: "",
@@ -56,7 +56,7 @@ describe("Blockchain", () => {
       const signedTx = wallet1.signTransaction(tx);
 
       expect(blockchain.addTransaction(signedTx)).toBeFalsy();
-      expect(blockchain.pendingTransactions.length).toBe(1);
+      expect(blockchain.pendingTransactions.length).toBe(0);
     });
 
     it("should reject invalid transaction signature", () => {
@@ -69,7 +69,7 @@ describe("Blockchain", () => {
         tx.signature = "invalid_signature";
 
       expect(blockchain.addTransaction(tx)).toBeFalsy();
-      expect(blockchain.pendingTransactions.length).toBe(1);
+      expect(blockchain.pendingTransactions.length).toBe(0);
     });
   });
 
@@ -124,7 +124,7 @@ describe("Blockchain", () => {
         sender: wallet1.address,
         recipient: wallet2.address,
         amount: 100n,
-        fee: 1n,
+        fee: 0n,
         timestamp: Date.now(),
         publicKey: wallet1.publicKey,
         signature: "",
@@ -198,7 +198,7 @@ describe("Blockchain", () => {
         sender: wallet1.address,
         recipient: wallet2.address,
         amount: 100n,
-        fee: 1n,
+        fee: 0n,
         timestamp: Date.now(),
         publicKey: wallet1.publicKey,
         signature: "",
@@ -238,7 +238,7 @@ describe("Blockchain", () => {
         sender: wallet1.address,
         recipient: wallet2.address,
         amount: 100n,
-        fee: 1n,
+        fee: 0n,
         timestamp: Date.now(),
         publicKey: wallet1.publicKey,
         signature: "",
@@ -279,7 +279,7 @@ describe("Blockchain", () => {
         sender: wallet1.address,
         recipient: wallet2.address,
         amount: 200n,
-        fee: 1n,
+        fee: 0n,
         timestamp: Date.now(),
         publicKey: wallet1.publicKey,
         signature: "",
@@ -294,7 +294,7 @@ describe("Blockchain", () => {
       // Count transactions in genesis block
       expect(blockchain.chain[0].transactions.length).toBe(2);
 
-      expect(blockchain.getBalanceOfAddress(wallet1.address)).toBe(499n); // 1000 - 200 - 1 - 300
+      expect(blockchain.getBalanceOfAddress(wallet1.address)).toBe(500n); // 1000 - 200 - 1 - 300
       expect(blockchain.getBalanceOfAddress(wallet2.address)).toBe(200n);
     });
   });

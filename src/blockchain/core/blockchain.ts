@@ -47,13 +47,18 @@ export class Blockchain implements IBlockchain {
   }
 
   async forgeBlock(wallet: IWallet): Promise<boolean> {
+    if (this.pendingTransactions.length === 0) {
+      console.log("No pending transactions to forge a block");
+      return false;
+    }
+
     const address: string = wallet.address;
 
     if (!this.isEligibleValidator(address)) {
       console.log("Endereço não é um validador elegível");
       return false;
     }
-
+    
     const rewardTx: ITransaction = {
       id: crypto.randomUUID(),
       sender: "System",
@@ -140,7 +145,7 @@ export class Blockchain implements IBlockchain {
       this.pendingTransactions.push(transaction);
       return true;
     } catch (error) {
-      console.log("Error adding transaction:", error);
+      console.log("Error adding transaction", error);
       return false;
     }
   }

@@ -3,11 +3,13 @@ import elliptic from "elliptic";
 import { ITransaction } from "../interfaces/transaction.interface";
 const EC = new elliptic.ec("secp256k1");
 
+//TODO: implement fee
 export class Transaction implements ITransaction {
   public id: string;
   public sender: string;
   public recipient: string;
   public amount: bigint;
+  public fee: bigint = 0n;
   public timestamp: number = Date.now();
   public signature: string = "";
   public publicKey: string;
