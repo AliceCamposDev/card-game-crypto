@@ -2,6 +2,9 @@ import { IWallet } from "../interfaces/wallet.interface";
 import { ITransaction } from "../interfaces/transaction.interface";
 import crypto from "crypto";
 import elliptic from "elliptic";
+import { IBlock } from "../interfaces/block.interface";
+import { hashBlock } from "../utils/utils";
+const EC = new elliptic.ec("secp256k1");
 
 export class Wallet implements IWallet {
   public address: string;
@@ -9,8 +12,7 @@ export class Wallet implements IWallet {
   public publicKey: string;
 
   constructor() {
-    const ec = new elliptic.ec("secp256k1");
-    const keyPair = ec.genKeyPair();
+    const keyPair = EC.genKeyPair();
     this.privateKey = keyPair.getPrivate("hex");
     this.publicKey = keyPair.getPublic(false, "hex");
     const publicKeyHex = keyPair.getPublic("hex");
@@ -21,8 +23,7 @@ export class Wallet implements IWallet {
   signTransaction(transaction: ITransaction): ITransaction {
     //TODO: check if the transaction is valid
 
-    const ec = new elliptic.ec("secp256k1");
-    const keyPair = ec.keyFromPrivate(this.privateKey);
+    const keyPair = EC.keyFromPrivate(this.privateKey);
 
     const payload = [
       transaction.sender,
@@ -39,5 +40,18 @@ export class Wallet implements IWallet {
 
     transaction.signature = signature.toDER("hex");
     return transaction;
+  }
+
+  signBlock(block: IBlock): IBlock {
+    const keyPair = EC.keyFromPrivate(this.privateKey);
+
+    const hashedBlock = hashBlock(block);
+
+    const signature = keyPair.sign(hashedBlock, {
+      canonical: true,
+    });
+
+    block.signature = signature.toDER("hex");
+    return block;
   }
 }

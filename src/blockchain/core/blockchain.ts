@@ -1,22 +1,26 @@
 import { IBlock } from "../interfaces/block.interface";
 import { ITransaction } from "../interfaces/transaction.interface";
 import { IBlockchain } from "../interfaces/blockchain.interface";
-
-import crypto from "crypto";
+import { hashBlock } from "../utils/utils";
+import crypto, { sign } from "crypto";
 import elliptic from "elliptic";
+import { IWallet } from "../interfaces/wallet.interface";
+
 const EC = new elliptic.ec("secp256k1");
 
 export class Blockchain implements IBlockchain {
   public chain: IBlock[];
   public pendingTransactions: ITransaction[];
-  public difficulty: number;
-  public miningReward: string;
+  public stakes: Map<string, bigint>;
+  public stakingRequirement: bigint;
+  public validatorReward: bigint;
 
   constructor() {
     this.chain = [this.createGenesisBlock()];
     this.pendingTransactions = [];
-    this.difficulty = 2;
-    this.miningReward = "100";
+    this.stakes = new Map<string, bigint>();
+    this.stakingRequirement = 1000n;
+    this.validatorReward = 10n;
   }
 
   private createGenesisBlock(): IBlock {
@@ -26,15 +30,71 @@ export class Blockchain implements IBlockchain {
       timestamp: genesisTimestamp,
       transactions: [],
       previousHash: "0",
-      hash: this.calculateBlockHash({
-        index: 0,
-        timestamp: genesisTimestamp,
-        transactions: [],
-        previousHash: "0",
-        nonce: 0,
-      }),
-      nonce: 0,
+      forger: "0",
+      signature: "0",
+      hash: "0",
     };
+  }
+
+  stakeTokens(amount: bigint, address: string): boolean {
+    if (this.getAvailableBalance(address) < amount) {
+      console.log("Insufficient funds to stake");
+      return false;
+    }
+    const currentStake: bigint = this.stakes.get(address) || 0n;
+    this.stakes.set(address, currentStake + amount);
+    return true;
+  }
+
+  async forgeBlock(wallet: IWallet): Promise<boolean> {
+    if (this.pendingTransactions.length === 0) {
+      console.log("No pending transactions to forge a block");
+      return false;
+    }
+
+    const address: string = wallet.address;
+
+    if (!this.isEligibleValidator(address)) {
+      console.log("Endereço não é um validador elegível");
+      return false;
+    }
+    
+    const rewardTx: ITransaction = {
+      id: crypto.randomUUID(),
+      sender: "System",
+      recipient: address,
+      amount: this.validatorReward,
+      fee: 0n,
+      timestamp: Date.now(),
+      signature: "",
+      publicKey: "",
+
+      isValid: () => true,
+    };
+
+    const transactions = [...this.pendingTransactions, rewardTx];
+    const previousHash = this.getLatestBlock().hash;
+
+    const newBlock: IBlock = {
+      index: this.chain.length,
+      timestamp: Date.now(),
+      transactions,
+      previousHash,
+      forger: address,
+      hash: "",
+      signature: "",
+    };
+
+    this.pendingTransactions = [];
+    newBlock.hash = hashBlock(newBlock);
+    wallet.signBlock(newBlock);
+
+    return this.addBlock(newBlock);
+  }
+
+  private isEligibleValidator(address: string): boolean {
+    const stake: bigint = this.stakes.get(address) || 0n;
+    return stake >= this.stakingRequirement;
   }
 
   public isTransactionSignatureValid(transaction: ITransaction): boolean {
@@ -43,7 +103,7 @@ export class Blockchain implements IBlockchain {
     }
 
     if (!transaction.publicKey || !transaction.signature) {
-      console.error("Missing public key or signature");
+      console.log("Missing public key or signature");
       return false;
     }
 
@@ -61,7 +121,7 @@ export class Blockchain implements IBlockchain {
 
       return keyPair.verify(txHash, transaction.signature);
     } catch (error) {
-      console.error("Signature verification failed:", error);
+      console.log("Signature verification failed");
       return false;
     }
   }
@@ -73,94 +133,21 @@ export class Blockchain implements IBlockchain {
   public addTransaction(transaction: ITransaction): boolean {
     try {
       if (!transaction.isValid(this.getAvailableBalance.bind(this))) {
-        console.error("Cannot add invalid transaction to chain");
+        console.log("Cannot add invalid transaction to chain");
         return false;
       }
 
       if (!this.isTransactionSignatureValid(transaction)) {
-        console.error("Cannot add transaction, invalid Transaction signature");
+        console.log("Cannot add transaction, invalid Transaction signature");
         return false;
       }
 
       this.pendingTransactions.push(transaction);
       return true;
     } catch (error) {
-      console.error("Error adding transaction:", error);
+      console.log("Error adding transaction", error);
       return false;
     }
-  }
-
-  public minePendingTransactions(miningRewardAddress: string): boolean {
-    
-    if (!this.isChainValid()) {
-      console.error("Cannot mine, blockchain is invalid");
-        return false;
-    }
-
-    if (this.pendingTransactions.length === 0) {
-      console.log("No transactions to mine");
-      return false;
-    }
-    try {
-      const rewardTx: ITransaction = {
-        sender: "System",
-        publicKey: "SystemPublicKey",
-        recipient: miningRewardAddress,
-        amount: BigInt(this.miningReward),
-        timestamp: Date.now(),
-        signature: "",
-        isValid: () => true,
-      };
-
-      this.pendingTransactions.push(rewardTx);
-
-      const prevBlock: IBlock = this.getLatestBlock();
-
-      const tempBlock: IBlock = {
-        index: prevBlock.index + 1,
-        timestamp: Date.now(),
-        transactions: [...this.pendingTransactions],
-        previousHash: prevBlock.hash,
-        hash: "",
-        nonce: 0,
-      };
-
-      tempBlock.hash = this.proofOfWork(tempBlock);
-
-      const success = this.addBlock(tempBlock);
-      if (success) {
-        console.log("Block successfully mined!");
-        this.pendingTransactions = [];
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("Error mining block:", error);
-      return false;
-    }
-  }
-
-  private proofOfWork(block: Omit<IBlock, "hash">): string {
-    let hash: string;
-    do {
-      block.nonce++;
-      hash = this.calculateBlockHash(block);
-    } while (!hash.startsWith("0".repeat(this.difficulty)));
-
-    return hash;
-  }
-
-  private calculateBlockHash(block: Omit<IBlock, "hash">): string {
-    const data = [
-      block.previousHash,
-      block.timestamp.toString(),
-      JSON.stringify(block.transactions, (key, value) =>
-        key === "amount" && typeof value === "bigint" ? value.toString() : value
-      ),
-      block.nonce.toString(),
-    ].join("");
-
-    return crypto.createHash("sha256").update(data).digest("hex");
   }
 
   public getBalanceOfAddress(address: string): bigint {
@@ -178,6 +165,10 @@ export class Blockchain implements IBlockchain {
       }
     }
 
+    const currentStake: bigint = this.stakes.get(address) || 0n;
+
+    balance -= currentStake;
+
     return balance;
   }
 
@@ -193,7 +184,7 @@ export class Blockchain implements IBlockchain {
 
   public isChainValid(): boolean {
     if (this.chain.length === 0) {
-      console.error("Blockchain is empty");
+      console.log("Blockchain is empty");
       return false;
     }
 
@@ -204,7 +195,7 @@ export class Blockchain implements IBlockchain {
         genesis.previousHash !== "0" ||
         genesis.transactions.length !== 0
       ) {
-        console.error("Genesis block is invalid");
+        console.log("Genesis block is invalid");
         return false;
       }
 
@@ -215,37 +206,31 @@ export class Blockchain implements IBlockchain {
         //TODO: better validation of transactions
         for (const trans of currentBlock.transactions) {
           if (!this.isTransactionSignatureValid(trans)) {
-            console.error(`Invalid transaction in block ${currentBlock.index}`);
+            console.log(`Invalid transaction in block ${currentBlock.index}`);
             return false;
           }
         }
 
-        const { hash, ...blockWithoutHash } = currentBlock;
-
-        if (this.calculateBlockHash(blockWithoutHash) !== currentBlock.hash) {
-          console.error(`Block ${i} hash is invalid`);
+        if (hashBlock(currentBlock) !== currentBlock.hash) {
+          console.log(`Block ${i} hash is invalid`);
           return false;
         }
 
         if (currentBlock.previousHash !== previousBlock.hash) {
-          console.error(`Block ${i} previous hash is invalid`);
+          console.log(`Block ${i} previous hash is invalid`);
           return false;
         }
 
         if (currentBlock.index !== previousBlock.index + 1) {
-          console.error(`Block ${i} index is invalid`);
+          console.log(`Block ${i} index is invalid`);
           return false;
         }
 
-        if (!currentBlock.hash.startsWith("0".repeat(this.difficulty))) {
-          console.error(`Block ${i} doesn't meet difficulty requirement`);
-          return false;
-        }
       }
 
       return true;
     } catch (error) {
-      console.error("Error validating chain:", error);
+      console.log("Error validating chain:", error);
       return false;
     }
   }
@@ -253,30 +238,27 @@ export class Blockchain implements IBlockchain {
   public addBlock(newBlock: IBlock): boolean {
     try {
       if (newBlock.previousHash !== this.getLatestBlock().hash) {
-        console.error("Invalid previous hash");
+        console.log("Invalid previous hash");
         return false;
       }
 
-      const { hash, ...blockWithoutHash } = newBlock;
-      if (this.calculateBlockHash(blockWithoutHash) !== newBlock.hash) {
-        console.error("Invalid hash");
+      if (hashBlock(newBlock) !== newBlock.hash) {
+        console.log("Invalid hash");
         return false;
       }
+
       if (newBlock.index !== this.getLatestBlock().index + 1) {
-        console.error("Invalid block index");
+        console.log("Invalid block index");
         return false;
       }
-      if (!newBlock.hash.startsWith("0".repeat(this.difficulty))) {
-        console.error("Block does not meet difficulty requirement");
-        return false;
-      }
+      
       for (const trans of newBlock.transactions) {
         if (!trans.isValid(this.getAvailableBalance.bind(this))) {
-          console.error("Invalid transaction in block");
+          console.log("Invalid transaction in block");
           return false;
         }
         if (!this.isTransactionSignatureValid(trans)) {
-          console.error("Invalid transaction signature in block");
+          console.log("Invalid transaction signature in block");
           return false;
         }
       }
@@ -284,7 +266,7 @@ export class Blockchain implements IBlockchain {
       this.chain.push(newBlock);
       return true;
     } catch (error) {
-      console.error("Error adding block:", error);
+      console.log("Error adding block:", error);
       return false;
     }
   }

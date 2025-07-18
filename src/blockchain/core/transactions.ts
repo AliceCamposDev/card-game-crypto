@@ -1,12 +1,15 @@
 import crypto from "crypto";
 import elliptic from "elliptic";
-const EC = new elliptic.ec("secp256k1");
 import { ITransaction } from "../interfaces/transaction.interface";
+const EC = new elliptic.ec("secp256k1");
 
+//TODO: implement fee
 export class Transaction implements ITransaction {
+  public id: string;
   public sender: string;
   public recipient: string;
   public amount: bigint;
+  public fee: bigint = 0n;
   public timestamp: number = Date.now();
   public signature: string = "";
   public publicKey: string;
@@ -15,31 +18,23 @@ export class Transaction implements ITransaction {
     sender: string,
     recipient: string,
     amount: bigint,
-    timestamp: number,
-    signature: string,
     publicKey: string,
   ) {
+    this.id = crypto.randomUUID();
     this.sender = sender;
     this.recipient = recipient;
     this.amount = amount;
-    this.timestamp = timestamp;
-    this.signature = signature;
+    this.timestamp = Date.now();
+    this.signature = "";
+    //TODO: wallert public key should be set by the wallet
     this.publicKey = publicKey;
   }
 
-  createTransaction(
-    sender: string,
-    recipient: string,
-    amount: bigint,
-    publicKey: string
-  ): ITransaction {
-    return new Transaction(sender, recipient, amount, Date.now(), "", publicKey);
-  }
 
   calculateHash(): string {
     return crypto
       .createHash("sha256")
-      .update(this.sender + this.publicKey + this.recipient + this.amount + this.timestamp)
+      .update(this.id + this.sender + this.publicKey + this.recipient + this.amount + this.timestamp)
       .digest("hex");
   }
 
@@ -60,10 +55,9 @@ export class Transaction implements ITransaction {
 
     const senderBalance = getAvailableBalanceFn(this.sender);
     if (senderBalance < this.amount) {
-      console.log("Sender does not have enough balance");
+      console.log("Insufficient funds");
       return false;
     }
-
     return true
   }
 }

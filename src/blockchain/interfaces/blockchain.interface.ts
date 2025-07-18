@@ -4,6 +4,7 @@ import { ITransaction } from "./transaction.interface";
 export interface IBlockchain {
   chain: IBlock[];
   pendingTransactions: ITransaction[];
-  difficulty: number;
-  miningReward: string;
+  stakes: Map<string, bigint>
+  stakingRequirement: bigint;
+  validatorReward: bigint;
 }
