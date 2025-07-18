@@ -1,7 +1,7 @@
-import { Blockchain } from "./blockchain/blockchain";
-import { Wallet } from "./blockchain/wallet";
-import { Transaction } from "./blockchain/transactions";
-import { IBlock } from "./interfaces/block.interface";
+import { Blockchain } from "./blockchain/core/blockchain";
+import { Wallet } from "./blockchain/core/wallet";
+import { Transaction } from "./blockchain/core/transactions";
+import { IBlock } from "./blockchain/interfaces/block.interface";
 
 const blockchain = new Blockchain();
 

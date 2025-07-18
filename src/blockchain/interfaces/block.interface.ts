@@ -6,5 +6,6 @@ export interface IBlock {
   timestamp: number;
   transactions: ITransaction[];
   hash: string;
-  nonce: number;
+  forger: string;
+  signature: string;
 }

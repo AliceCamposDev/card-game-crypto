@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import elliptic from "elliptic";
-const EC = new elliptic.ec("secp256k1");
 import { ITransaction } from "../interfaces/transaction.interface";
+const EC = new elliptic.ec("secp256k1");
 
 export class Transaction implements ITransaction {
   public sender: string;
@@ -60,10 +60,9 @@ export class Transaction implements ITransaction {
 
     const senderBalance = getAvailableBalanceFn(this.sender);
     if (senderBalance < this.amount) {
-      console.log("Sender does not have enough balance");
+      console.log("Insufficient funds");
       return false;
     }
-
     return true
   }
 }
